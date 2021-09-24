@@ -1,0 +1,28 @@
+{
+  "name": "serverless",
+  "version": "1.0.0",
+  "description": "A project using the Serverless Framework, JavaScript, AWS Lambda, AWS API Gateway and GitLab",
+  "scripts": {
+    "start": "sls offline start --stage dev --httpPort 4000",
+    "package": "serverless package",
+    "deploy:staging": "serverless deploy --stage staging",
+    "deploy:production": "serverless deploy --stage production"
+  },
+  "author": "Dhaval Laiya",
+  "license": "ISC",
+  "dependencies": {
+    "mongodb": "^4.1.1",
+    "serverless": "^2.59.0",
+    "serverless-jest-plugin": "^0.4.0"
+  },
+  "devDependencies": {
+    "serverless-offline": "^8.1.0",
+    "serverless-plugin-common-excludes": "^4.0.0",
+    "serverless-plugin-include-dependencies": "^5.0.0"
+  },
+  "jest": {
+    "testMatch": [
+      "**/?(*.)+(spec|test).[jt]s?(x)"
+    ]
+  }
+}

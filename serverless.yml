@@ -1,0 +1,62 @@
+service: serverless
+useDotenv: true # to support local env variables
+
+# Packaging functions separately
+package:
+  individually: true
+  patterns:
+    - "!functions/**"
+    - "!utils/**"
+    # by default exclude above
+
+# turn behavior on to expose errors; Deprecation code: NEW_VARIABLES_RESOLVER
+variablesResolutionMode: 20210326
+
+# You can pin your service to only deploy with a specific Serverless version
+frameworkVersion: "2"
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  stage: ${opt:stage, 'dev'}
+  region: ${env:AWS_REGION, 'us-east-1'}
+  lambdaHashingVersion: 20201221
+  environment:
+    # MONGO_URI: ${env:MONGO_URI} // from gitlab variables
+    # MONGO_DB: ${env:MONGO_DB} // # optional if uri has db name
+    # MONGO_URI: ${self:custom.ssm.MONGO_URI} // to get env from ssm
+
+functions:
+  fun1:
+    handler: functions/fun1/index.handler
+    timeout: 20
+    events:
+      # more than one paths for single handler
+      - http:
+          path: /fun1-path1
+          method: post
+          cors: true
+      - http:
+          path: /fun1-path2/{id}
+          method: get
+          cors: true
+          request:
+            parameters:
+              paths:
+                id: true
+  fun2:
+    handler: functions/fun2/index.handler
+    timeout: 20
+    events:
+      - http:
+          path: /fun2
+          method: any
+          cors: true
+
+plugins:
+  - serverless-offline
+  - serverless-plugin-common-excludes
+  - serverless-plugin-include-dependencies
+# custom:
+#   ssm: ${ssm:/aws/reference/secretsmanager/${opt:stage}/serverless/envs, 'default'}
+
