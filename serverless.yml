@@ -25,6 +25,12 @@ provider:
     # MONGO_URI: ${env:MONGO_URI} // from gitlab variables
     # MONGO_DB: ${env:MONGO_DB} // # optional if uri has db name
     # MONGO_URI: ${self:custom.ssm.MONGO_URI} // to get env from ssm
+  iamRoleStatements: # provide permission for following actions
+    - Effect: "Allow"
+      Action:
+        - ses:SendEmail
+        - ses:SendRawEmail
+      Resource: "*"
 
 functions:
   fun1:
