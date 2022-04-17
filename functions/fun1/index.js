@@ -1,4 +1,6 @@
-"use strict";
+'use strict';
+
+const { formatSuccess, formatError } = require('../../utils/helper');
 
 // if function is async, then return the response directly,
 // else use callback to pass response as below
@@ -10,24 +12,28 @@ module.exports.handler = async (event, context) => {
   context.callbackWaitsForEmptyEventLoop = false; // default: true
   // Set to false to send the response right away when the callback runs, instead of waiting for the Node.js event loop to be empty.
 
-  console.log(event.httpMethod); // GET, POST, PUT, DELETE
-  console.log(event.pathParameters.id); // path id
-  const body = JSON.parse(event.body); // body
+  try {
+    console.log(event.httpMethod); // GET, POST, PUT, DELETE
 
-  const response = {
-    statusCode: 200,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-    },
-    body: JSON.stringify(
-      {
-        message: "Success",
-        bdoy: body,
-      },
-      null,
-      2
-    ),
-  };
+    let data;
+    if (event.httpMethod === 'GET') {
+      const params = event.pathParameters && event.pathParameters.id;
+      const queryStrings = event.queryStringParameters;
+      data = {
+        pathParams: params,
+        queryStrings,
+      };
+    } else {
+      data = {
+        body: JSON.parse(event.body), // body for POST, PUT
+      };
+    }
 
-  return response;
+    return formatSuccess({
+      message: 'Function executed successfully',
+      data,
+    });
+  } catch (error) {
+    return formatError(error.message);
+  }
 };

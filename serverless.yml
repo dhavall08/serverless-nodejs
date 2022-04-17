@@ -1,3 +1,5 @@
+# https://github.com/dhavall08
+
 service: serverless
 useDotenv: true # to support local env variables
 
@@ -5,15 +7,16 @@ useDotenv: true # to support local env variables
 package:
   individually: true
   patterns:
-    - "!functions/**"
-    - "!utils/**"
-    # by default exclude above
+    - '!*/**'
+    - '!prettier.config.js'
+    # exclude above from bundle; instead, we could also add "include" for each function
+    # - 'node_modules/dotenv/**' # to support local env variables in sequelize
 
 # turn behavior on to expose errors; Deprecation code: NEW_VARIABLES_RESOLVER
 variablesResolutionMode: 20210326
 
 # You can pin your service to only deploy with a specific Serverless version
-frameworkVersion: "2"
+frameworkVersion: '2'
 
 provider:
   name: aws
@@ -22,15 +25,20 @@ provider:
   region: ${env:AWS_REGION, 'us-east-1'}
   lambdaHashingVersion: 20201221
   environment:
-    # MONGO_URI: ${env:MONGO_URI} // from gitlab variables
-    # MONGO_DB: ${env:MONGO_DB} // # optional if uri has db name
-    # MONGO_URI: ${self:custom.ssm.MONGO_URI} // to get env from ssm
+    STAGE: ${opt:stage, 'dev'}
+    JWT_SECRET: ${env:JWT_SECRET} // from gitlab variables
+    # SOME_ENV: ${self:custom.ssm.SOME_ENV} // to get env from ssm
   iamRoleStatements: # provide permission for following actions
-    - Effect: "Allow"
+    - Effect: 'Allow'
       Action:
         - ses:SendEmail
         - ses:SendRawEmail
-      Resource: "*"
+      Resource: '*'
+    # for S3 services
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+      Resource: { Fn::Join: ['', [{ Fn::GetAtt: [S3Bucket, Arn] }, '/*']] } # arn:aws:s3:::bucketName/*
 
 functions:
   fun1:
@@ -39,30 +47,112 @@ functions:
     events:
       # more than one paths for single handler
       - http:
-          path: /fun1-path1
+          path: /public/fun1-path1
           method: post
           cors: true
       - http:
-          path: /fun1-path2/{id}
+          path: /public/fun1-path2/{id}
           method: get
           cors: true
-          request:
-            parameters:
-              paths:
-                id: true
+          # request:
+          # # Optional request parameter configuration
+          #    parameters:
+          #      paths:
+          #        id: true # mark path parameter as required
+
+  # authorizer function
+  verify-token:
+    handler: functions/auth-token.auth
+
   fun2:
     handler: functions/fun2/index.handler
     timeout: 20
     events:
       - http:
-          path: /fun2
+          path: /private/fun2
           method: any
           cors: true
+          # uncomment below to access httponly cookies from client
+          # cors:
+          #   origin: ${self:provider.environment.FRONTEND_URL}
+          #   allowCredentials: true
+          authorizer:
+            name: verify-token
+            identitySource: method.request.header.Authorization # replace with your authorizer header
+            # identitySource: method.request.header.cookie # if you want to use cookie
+
+  # upload file to S3 using aws-sdk & test locally with serverless-s3-local
+  get-signed-url:
+    handler: functions/upload/signedUrl.handler
+    events:
+      - http:
+          path: /private/get-signed-url
+          method: post
+          cors: true
+          authorizer:
+            name: verify-token
+            identitySource: method.request.header.Authorization
 
 plugins:
   - serverless-offline
   - serverless-plugin-common-excludes
   - serverless-plugin-include-dependencies
-# custom:
-#   ssm: ${ssm:/aws/reference/secretsmanager/${opt:stage}/serverless/envs, 'default'}
+  - serverless-s3-local
+
+resources:
+  Resources:
+    # This response is needed for custom authorizer failures cors support
+    GatewayResponse:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: 'method.request.header.Origin'
+          gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+        ResponseType: EXPIRED_TOKEN
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        StatusCode: '401'
+
+    AuthFailureGatewayResponse:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: 'method.request.header.Origin'
+          gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+        ResponseType: UNAUTHORIZED
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        StatusCode: '401'
+
+    # This will create a bucket in S3, could throw error if it already exists
+    S3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${env:S3_BUCKET}
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders: ['*']
+              AllowedMethods: [GET, POST, PUT]
+              AllowedOrigins: ['*']
+
+    S3BucketPolicy: # Allow uploaded files to be public and downloadable
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: { Ref: S3Bucket }
+        PolicyDocument:
+          Statement:
+            - Action:
+                - 's3:GetObject'
+              Effect: 'Allow'
+              Resource: { Fn::Join: ['', [{ Fn::GetAtt: [S3Bucket, Arn] }, '/*']] } # arn:aws:s3:::bucketName/*
+              Principal: '*'
+
+custom:
+  s3: # for local development
+    directory: /tmp # This is the directory where the files will be uploaded to S3 for local development
+    cors: utils/s3-cors.xml
+    allowMismatchedSignatures: true
+# ssm: ${ssm:/aws/reference/secretsmanager/${opt:stage}/serverless/envs, 'default'}
 

@@ -10,6 +10,7 @@ I've created a basic structure using serverless framework which includes individ
 ## Start local server
 
 - Run locally using `npm start` or you can also debug using VSCode (F5).
+- Test and upload files to local S3 for testing (find a sample function inside).
 
 ## Deployment
 

@@ -2,8 +2,8 @@ image: node:latest
 
 variables:
   AWS_REGION: us-east-1
-  MONGO_URI: $MONGO_URI
-  MONGO_DB: $MONGO_DB
+  JWT_SECRET: $JWT_SECRET
+  S3_BUCKET: $S3_BUCKET
 
 stages:
   # - test
